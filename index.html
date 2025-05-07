@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>زلمات - Zelmat</title>
+  <script src="https://unpkg.com/cesium@1.90.0/Build/Cesium/Cesium.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/cesium@1.90.0/Build/Cesium/Widgets/widgets.css" />
+  <style>
+    body, html { margin: 0; padding: 0; height: 100%; }
+    #cesiumContainer { width: 100%; height: 100%; }
+    #search {
+      position: absolute;
+      top: 10px; left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      background: white;
+      padding: 10px;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      width: 80%;
+    }
+  </style>
+</head>
+<body>
+  <input type="text" id="search" placeholder="ابحث عن مدينة أو دولة..." />
+  <div id="cesiumContainer"></div>
+
+  <script>
+    // إنشاء الخريطة ثلاثية الأبعاد باستخدام CesiumJS مع جميع التفاصيل الدقيقة
+    const viewer = new Cesium.Viewer('cesiumContainer', {
+      terrainProvider: Cesium.createWorldTerrain(), // تضاريس الأرض
+      imageryProvider: Cesium.createOpenStreetMapImageryProvider(), // خرائط OpenStreetMap
+      baseLayerPicker: false, // إزالة قائمة الطبقات (تخصيص)
+      geocoder: false, // تعطيل البحث المدمج (سنضيفه بأنفسنا)
+      scene3DOnly: true, // عرض في الوضع ثلاثي الأبعاد فقط
+    });
+
+    // البحث عن الأماكن (دول، مدن، معالم)
+    document.getElementById("search").addEventListener("keypress", async (e) => {
+      if (e.key === "Enter") {
+        const query = e.target.value;
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json`);
+        const data = await res.json();
+        if (data.length > 0) {
+          const loc = data[0];
+          viewer.camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(parseFloat(loc.lon), parseFloat(loc.lat), 10000), // الزووم على المكان
+            duration: 2
+          });
+        } else {
+          alert("لم يتم العثور على الموقع.");
+        }
+      }
+    });
+
+    // مشاركة الموقع عند النقر على الخريطة
+    viewer.screenSpaceEventHandler.setInputAction(function (movement) {
+      const ray = viewer.camera.getPickRay(movement.endPosition);
+      const result = viewer.scene.globe.pick(ray, viewer.scene);
+      if (Cesium.defined(result)) {
+        const cartographic = Cesium.Cartographic.fromCartesian(result);
+        const lat = Cesium.Math.toDegrees(cartographic.latitude).toFixed(6);
+        const lon = Cesium.Math.toDegrees(cartographic.longitude).toFixed(6);
+        const link = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=18/${lat}/${lon}`;
+        navigator.clipboard.writeText(link);
+        alert("تم نسخ رابط الموقع لمشاركته:\n" + link);
+      }
+    }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
+  </script>
+</body>
+</html>
